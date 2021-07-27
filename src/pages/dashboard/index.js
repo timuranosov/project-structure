@@ -11,20 +11,34 @@ export default class Page {
   components = {};
 
   async getDataForColumnCharts (from, to) {
-    const ORDERS = `${process.env.BACKEND_URL}api/dashboard/orders?from=${from.toISOString()}&to=${to.toISOString()}`;
-    const SALES = `${process.env.BACKEND_URL}api/dashboard/sales?from=${from.toISOString()}&to=${to.toISOString()}`;
-    const CUSTOMERS = `${process.env.BACKEND_URL}api/dashboard/customers?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`;
+    const ordersUrl = new URL('api/dashboard/orders', process.env.BACKEND_URL);
+    ordersUrl.searchParams.set('from', from.toISOString());
+    ordersUrl.searchParams.set('to', to.toISOString());
 
-    const ordersData = fetchJson(ORDERS);
-    const salesData = fetchJson(SALES);
-    const customersData = fetchJson(CUSTOMERS);
+    const salesUrl = new URL('api/dashboard/sales', process.env.BACKEND_URL);
+    salesUrl.searchParams.set('from', from.toISOString());
+    salesUrl.searchParams.set('to', to.toISOString());
+
+    const customersUrl = new URL('api/dashboard/customers', process.env.BACKEND_URL);
+    customersUrl.searchParams.set('from', from.toISOString());
+    customersUrl.searchParams.set('to', to.toISOString());
+
+    const ordersData = fetchJson(ordersUrl);
+    const salesData = fetchJson(salesUrl);
+    const customersData = fetchJson(customersUrl);
 
     const data = await Promise.all([ordersData, salesData, customersData]);
     return data.map(item => Object.values(item));
   }
 
   async updateTableComponent (from, to) {
-    const data = await fetchJson(`${process.env.BACKEND_URL}api/dashboard/bestsellers?_start=1&_end=20&from=${from.toISOString()}&to=${to.toISOString()}`);
+    const url = new URL('api/dashboard/bestsellers', process.env.BACKEND_URL);
+    url.searchParams.set('_start', '1');
+    url.searchParams.set('_end', '20');
+    url.searchParams.set('from', from.toISOString());
+    url.searchParams.set('to', to.toISOString());
+
+    const data = await fetchJson(url);
     this.components.sortableTable.addRows(data);
   }
 
@@ -80,15 +94,13 @@ export default class Page {
     this.components.rangePicker = rangePicker;
   }
 
-  get template () {
+  getTemplate () {
     return `<div class="dashboard">
       <div class="content__top-panel">
         <h2 class="page-title">Dashboard</h2>
-        <!-- RangePicker component -->
         <div data-element="rangePicker"></div>
       </div>
       <div data-element="chartsRoot" class="dashboard__charts">
-        <!-- column-chart components -->
         <div data-element="ordersChart" class="dashboard__chart_orders"></div>
         <div data-element="salesChart" class="dashboard__chart_sales"></div>
         <div data-element="customersChart" class="dashboard__chart_customers"></div>
@@ -97,7 +109,6 @@ export default class Page {
       <h3 class="block-title">Best sellers</h3>
 
       <div data-element="sortableTable">
-        <!-- sortable-table component -->
       </div>
     </div>`;
   }
@@ -105,7 +116,7 @@ export default class Page {
   async render () {
     const element = document.createElement('div');
 
-    element.innerHTML = this.template;
+    element.innerHTML = this.getTemplate();
 
     this.element = element.firstElementChild;
     this.subElements = this.getSubElements(this.element);
@@ -143,11 +154,29 @@ export default class Page {
       this.updateChartsComponents(from, to);
       this.updateTableComponent(from, to);
     });
+
+    this.subElements.sortableTable.addEventListener('pointerdown', e => {
+      const el = e.target.closest('.sortable-table__row');
+
+      if (el && el.dataset.id) {
+        const link = document.createElement('a');
+        link.href = `/products/${el.dataset.id}`;
+        link.click();
+      }
+    });
   }
 
-  destroy () {
-    for (const component of Object.values(this.components)) {
-      component.destroy();
+  remove() {
+    if (this.element) {
+      this.element.remove();
     }
+  }
+
+  destroy() {
+    Object.values(this.components).forEach(component => {
+      component.destroy();
+    });
+
+    this.remove();
   }
 }
